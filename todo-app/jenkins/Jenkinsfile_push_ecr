@@ -1,0 +1,63 @@
+pipeline {
+  agent any
+
+  environment {
+    AWS_ACCOUNT_ID = "${env.AWS_ACCOUNT_ID}"  // set in Jenkins credentials/params
+    AWS_REGION     = "${env.AWS_REGION ?: 'us-east-1'}"
+    ECR_REPO       = "${env.ECR_REPO_NAME ?: 'todo-app'}"
+    IMAGE_TAG      = "${env.BUILD_NUMBER ?: 'latest'}"
+    IMAGE_NAME     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Build Docker image') {
+      steps {
+        script {
+          sh "docker build -t ${ECR_REPO}:${IMAGE_TAG} ."
+        }
+      }
+    }
+
+    stage('Ensure ECR repo') {
+      steps {
+        script {
+          // create repo if not exists
+          sh """
+            aws --region ${AWS_REGION} ecr describe-repositories --repository-names ${ECR_REPO} || \
+            aws --region ${AWS_REGION} ecr create-repository --repository-name ${ECR_REPO}
+          """
+        }
+      }
+    }
+
+    stage('Login to ECR') {
+      steps {
+        sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      }
+    }
+
+    stage('Tag & Push') {
+      steps {
+        sh """
+          docker tag ${ECR_REPO}:${IMAGE_TAG} ${IMAGE_NAME}:${IMAGE_TAG}
+          docker push ${IMAGE_NAME}:${IMAGE_TAG}
+        """
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "Image pushed: ${IMAGE_NAME}:${IMAGE_TAG}"
+    }
+    failure {
+      echo "Build or push failed"
+    }
+  }
+}

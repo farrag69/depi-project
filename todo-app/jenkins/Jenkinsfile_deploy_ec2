@@ -1,0 +1,66 @@
+pipeline {
+  agent any
+
+  environment {
+    AWS_ACCOUNT_ID = "${env.AWS_ACCOUNT_ID}"
+    AWS_REGION     = "${env.AWS_REGION ?: 'us-east-1'}"
+    ECR_REPO       = "${env.ECR_REPO_NAME ?: 'todo-app'}"
+    IMAGE_TAG      = "${env.IMAGE_TAG ?: env.BUILD_NUMBER ?: 'latest'}"
+    IMAGE_NAME     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+
+    // Target EC2
+    EC2_USER = "${env.EC2_USER ?: 'ec2-user'}"
+    EC2_HOST = "${env.EC2_HOST ?: '1.2.3.4'}" // set real IP or hostname
+    SSH_CREDENTIALS_ID = "${env.SSH_CREDENTIALS_ID ?: 'ec2-ssh-key'}"
+  }
+
+  stages {
+    stage('Notify') {
+      steps {
+        echo "Deploying ${IMAGE_NAME} to ${EC2_USER}@${EC2_HOST}"
+      }
+    }
+
+    stage('Deploy to EC2 via SSH') {
+      steps {
+        sshagent (credentials : [SSH_CREDENTIALS_ID]) {
+          script {
+            // Basic deployment: pull new image, stop & remove old container, run new
+            sh """
+              ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} <<'SSH_EOF'
+                set -e
+                echo "Authenticating to ECR..."
+                # If EC2 has instance profile with ECR access: no login needed for docker pull on most platforms
+                aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com || true
+
+                echo "Pulling image ${IMAGE_NAME}"
+                docker pull ${IMAGE_NAME}
+
+                # Stop existing container if running
+                if docker ps -q --filter "name=todoapp" >/dev/null 2>&1; then
+                  docker stop todoapp || true
+                fi
+                if docker ps -a -q --filter "name=todoapp" >/dev/null 2>&1; then
+                  docker rm todoapp || true
+                fi
+
+                echo "Starting new container"
+                docker run -d --name todoapp -p 80:5000 --restart unless-stopped ${IMAGE_NAME}
+                echo "Deployed ${IMAGE_NAME}"
+              SSH_EOF
+            """
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "Deployment succeeded"
+    }
+    failure {
+      echo "Deployment failed"
+    }
+  }
+}
