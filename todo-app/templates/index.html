@@ -1,36 +1,96 @@
 <!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8"/>
-    <title>Todo App (Students & Engineers)</title>
-    <style>
-      body { font-family: Arial, sans-serif; max-width: 800px; margin: 2rem auto; }
-      form { margin-bottom: 1rem; }
-      .todo { padding: .5rem; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center;}
-      .done { text-decoration: line-through; color: gray; }
-      .controls a { margin-left: .5rem; }
-    </style>
-  </head>
-  <body>
-    <h1>Study & Work ToDos</h1>
-    <form action="/add" method="post">
-      <input name="title" placeholder="Add task e.g. Study Algorithms 2 hours" style="width:80%" required>
-      <button type="submit">Add</button>
-    </form>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Todo App</title>
 
-    {% for t in todos %}
-    <div class="todo">
-      <div>
-        <strong class="{{ 'done' if t.done }}">{{ t.title }}</strong>
-        <div style="font-size: .8rem; color: #666">{{ t.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
-      </div>
-      <div class="controls">
-        <a href="{{ url_for('toggle', todo_id=t.id) }}">{{ 'Undo' if t.done else 'Done' }}</a>
-        <a href="{{ url_for('delete', todo_id=t.id) }}" onclick="return confirm('Delete?')">Delete</a>
+  <!-- Bootstrap 5 -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  >
+
+  <style>
+    body {
+      background: #f8f9fa;
+      padding-top: 40px;
+    }
+    .todo-card {
+      transition: 0.2s;
+    }
+    .todo-card:hover {
+      background: #f1f1f1;
+    }
+    .done {
+      text-decoration: line-through;
+      color: gray;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+  <div class="col-lg-7 mx-auto">
+
+    <h1 class="text-center mb-4 fw-bold">📌 Study & Work ToDos</h1>
+
+    <!-- Add Task Form -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <form action="/add" method="post" class="d-flex gap-2">
+          <input 
+            name="title" 
+            class="form-control" 
+            placeholder="Add a new task..." 
+            required
+          >
+          <button class="btn btn-primary">Add</button>
+        </form>
       </div>
     </div>
+
+    <!-- Todo List -->
+    {% for t in todos %}
+    <div class="card mb-2 shadow-sm todo-card">
+      <div class="card-body d-flex justify-content-between align-items-center">
+
+        <div>
+          <h5 class="{{ 'done' if t.completed else '' }}">{{ t.title }}</h5>
+          <small class="text-muted">
+            {{ t.created_at.strftime('%Y-%m-%d %H:%M') }}
+          </small>
+        </div>
+
+        <div class="text-end">
+          <a 
+            href="{{ url_for('toggle', todo_id=t.id) }}" 
+            class="btn btn-sm {{ 'btn-warning' if t.completed else 'btn-success' }}"
+          >
+            {{ 'Undo' if t.completed else 'Done' }}
+          </a>
+
+          <a 
+            href="{{ url_for('delete', todo_id=t.id) }}" 
+            class="btn btn-sm btn-danger"
+            onclick="return confirm('Delete this task?')"
+          >
+            Delete
+          </a>
+        </div>
+
+      </div>
+    </div>
+
     {% else %}
-    <p>No tasks yet — add something!</p>
+    <p class="text-center text-muted mt-4">No tasks yet — add something!</p>
     {% endfor %}
-  </body>
+
+  </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
 </html>
